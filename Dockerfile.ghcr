@@ -1,0 +1,21 @@
+# Thin runtime image over the artifact produced by the repo's existing build
+# pipeline (.github/actions/build). The build context is the already-packaged
+# Sonarr folder (_artifacts/linux-x64/net10.0/Sonarr) with the built UI copied
+# in — see .github/workflows/ghcr-image.yml. No compilation happens here.
+#
+# Personal test image for this fork (media-server notification delay feature),
+# not the official Sonarr image. Config lives in /config; listens on 8989.
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0
+
+# Native bits Sonarr expects at runtime that aren't in the self-contained bundle.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends sqlite3 ca-certificates xmlstarlet \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY . /app
+WORKDIR /app
+RUN chmod +x /app/Sonarr
+
+VOLUME /config
+EXPOSE 8989
+ENTRYPOINT ["/app/Sonarr", "-nobrowser", "-data=/config"]
