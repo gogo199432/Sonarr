@@ -1,0 +1,10 @@
+# Keep the Docker build context small and reproducible.
+.git
+_output
+_tests
+_artifacts
+local-test
+node_modules
+**/bin
+**/obj
+**/*.user

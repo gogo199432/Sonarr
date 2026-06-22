@@ -1,0 +1,54 @@
+# Builds the drop-in PRODUCTION image: this fork's backported v4 backend
+# overlaid on the LinuxServer image (Dockerfile.lsio-v4), pushed to
+# ghcr.io/<owner>/sonarr:v4-notif-delay. Stays v4 (no DB migration), keeps the
+# LSIO s6/PUID/PGID layer, so it's a drop-in for the existing k8s deployment.
+#
+# Lives only on the media-notification-delay-v4 branch.
+name: ghcr image (v4 prod)
+
+on:
+  push:
+    branches:
+      - media-notification-delay-v4
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/sonarr
+          tags: |
+            type=raw,value=v4-notif-delay
+            type=sha,prefix=v4-
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.lsio-v4
+          push: true
+          # amd64 only. For arm64 nodes add: platforms: linux/arm64
+          # and build-args: RID=linux-musl-arm64  (LSIO base is Alpine/musl)
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -1,0 +1,44 @@
+# Drop-in production image: this fork's backend (Sonarr v4, backported feature)
+# overlaid onto the LinuxServer image, keeping its s6 + PUID/PGID layer intact.
+# Stays v4 -> NO v4->v5 database migration. The feature is backend-only, so the
+# base image's UI is reused untouched.
+#
+# The LinuxServer base is Alpine (musl), so the backend must be built for a musl
+# RID, not the glibc linux-x64.
+#
+# Build (amd64 nodes):
+#   docker build -f Dockerfile.lsio-v4 -t ghcr.io/<owner>/sonarr:v4-notif-delay .
+# For arm64 nodes:
+#   docker build -f Dockerfile.lsio-v4 --platform linux/arm64 \
+#     --build-arg RID=linux-musl-arm64 -t ... .
+
+ARG RID=linux-musl-x64
+ARG VERSION=4.0.17.9999
+ARG LSIO_BASE=lscr.io/linuxserver/sonarr:4.0.17-develop
+
+# ---- build the backported v4 backend (self-contained, .NET 6) ----
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+ARG RID
+ARG VERSION
+WORKDIR /src
+COPY . .
+# Same publish target the v4 build.sh uses (PublishAllRids, Posix). Specifying a
+# RID makes the publish self-contained, matching the bundle LinuxServer ships.
+RUN dotnet msbuild -restore src/Sonarr.sln \
+        -p:Configuration=Release \
+        -p:Platform=Posix \
+        -p:RuntimeIdentifiers=${RID} \
+        -p:AssemblyVersion=${VERSION} \
+        -p:AssemblyConfiguration=develop \
+        -t:PublishAllRids
+# Assemble just the backend (no UI) the way PackageLinux does.
+RUN mkdir -p /app/bin \
+ && cp -r _output/net6.0/${RID}/publish/* /app/bin/ \
+ && rm -f /app/bin/ServiceInstall.* /app/bin/ServiceUninstall.* /app/bin/Sonarr.Windows.* \
+ && chmod +x /app/bin/Sonarr
+
+# ---- overlay onto the LinuxServer image ----
+FROM ${LSIO_BASE}
+# Replace the bundled backend with ours. The base image's UI (/app/sonarr/bin/UI)
+# and the entire s6/PUID/PGID init layer are kept as-is.
+COPY --from=build /app/bin/ /app/sonarr/bin/
