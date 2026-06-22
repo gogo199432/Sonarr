@@ -35,7 +35,7 @@ RUN dotnet msbuild -restore src/Sonarr.sln \
 RUN mkdir -p /app/bin \
  && cp -r _output/net6.0/${RID}/publish/* /app/bin/ \
  && rm -f /app/bin/ServiceInstall.* /app/bin/ServiceUninstall.* /app/bin/Sonarr.Windows.* \
- && chmod +x /app/bin/Sonarr
+ && chmod a+x /app/bin/Sonarr /app/bin/ffprobe
 
 # ---- overlay onto the LinuxServer image ----
 FROM ${LSIO_BASE}
